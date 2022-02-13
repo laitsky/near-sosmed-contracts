@@ -1,11 +1,12 @@
 use std::fmt::Formatter;
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::{env, near_bindgen};
-use near_sdk::collections::{Vector};
-use serde::{Serialize, Deserialize};
+use near_sdk::{AccountId, env, log, near_bindgen, BorshStorageKey};
+use near_sdk::collections::{LookupMap, Vector};
+//use serde::{Serialize, Deserialize};
 
 near_sdk::setup_alloc!();
 
+    /*
 #[derive(Default, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
 pub struct Message {
     account_id: String,
@@ -15,63 +16,75 @@ pub struct Message {
 
 impl std::fmt::Display for Message {
     fn fmt(&self, fmt: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(fmt, "({}){}: {}", self.timestamp, self.account_id, self.message)
+        //write!(fmt, "({}){}: {}", self.timestamp, self.account_id, self.message)
+        todo!()
     }
 }
+    */
+
+#[derive(BorshStorageKey, BorshSerialize)]
+pub enum StorageKeys {
+    UserList,
+    AllMessages
+}
+#[derive(BorshDeserialize, BorshSerialize)]
+pub struct User {
+    name: String,
+    friend_list: Option<Vector<Friend>>,
+}
+
+#[derive(BorshDeserialize, BorshSerialize)]
+pub struct Friend {
+    address: AccountId,
+    name: String,
+}
+
+#[derive(BorshDeserialize, BorshSerialize)]
+pub struct Message {
+    sender: AccountId,
+    timestamp: u64,
+    message: String,
+}
+
 
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize)]
-pub struct VecMessages {
-    records: Vector<Message>
-}
-
-impl Default for VecMessages {
-    fn default() -> Self {
-        Self {
-            records: Vector::new(b"r")
-        }
-    }
+pub struct MessagingDb {
+    // Collection of users registered on the application
+    user_list: LookupMap<AccountId, User>,
+    all_messages: LookupMap<String, Vector<Message>>
 }
 
 #[near_bindgen]
-impl VecMessages {
-    pub fn insert_message(&mut self, message: String) {
-        let account_id = env::signer_account_id();
-        let message = Message {
-            account_id: String::from(account_id),
-            timestamp: env::block_timestamp(),
-            message: String::from(message)
-        };
-        self.records.push(&message)
-    }
-
-    pub fn get_messages_count(&self) -> u64 {
-        self.records.len()
-    }
-
-    pub fn get_all_messages(&self) -> Vec<Message> {
-        /*
-        for message in 0..self.get_messages_count() {
-            println!(
-                "{}: {}",
-                self.records.get(message).unwrap().account_id,
-                self.records.get(message).unwrap().message
-            )
+impl MessagingDb {
+    // Initialize the contract
+    #[init]
+    pub fn new() -> Self {
+        Self {
+            user_list: LookupMap::new(StorageKeys::UserList),
+            all_messages: LookupMap::new(StorageKeys::AllMessages)
         }
-         */
-        let mut messages: Vec<Message> = Vec::new();
-        for message in 0..self.get_messages_count() {
-            messages.push(self.get_single_message(message));
-        }
-        messages
     }
 
-    pub fn get_single_message(&self, index: u64) -> Message {
-        self.records.get(index).unwrap_or(Message{
-            account_id: "".to_string(),
-            timestamp: 0,
-            message: "".to_string()
-        })
+    // Returns true if user exist
+    pub fn is_user_exists(&self, address: AccountId) -> bool {
+        self.user_list.contains_key(&address)
+    }
+
+    // Create an account
+    pub fn create_account(&mut self, name: String) {
+        let new_address: AccountId = env::signer_account_id();
+        assert!(!self.user_list.contains_key(&new_address), "Account already exist!");
+
+        // If not exist, insert a new address
+        self.user_list.insert(
+            &new_address,
+            &User {
+                    name,
+                    friend_list: None
+            }
+        );
+
     }
 }
 
@@ -106,43 +119,21 @@ mod tests {
     }
 
     #[test]
-    fn insert_message() {
+    #[should_panic]
+    fn check_user_exists() {
         let ctx = get_context(vec![], false);
         testing_env!(ctx);
 
-        let mut contract = VecMessages::default();
-        contract.insert_message("Hello world".to_string());
-        contract.insert_message("This is message 2".to_string());
-        contract.insert_message("This is message 3".to_string());
-        println!("{} total messages inserted in this test!", contract.get_messages_count())
+        let mut contract = MessagingDb::new();
+        println!("[ACCOUNT NOT CREATED]: check_user_exist value is [{}]",
+                 contract.is_user_exists("robert.testnet".to_string() as AccountId));
+
+        contract.create_account("Robert".to_string());
+        println!("[ACCOUNT CREATED]: check_user_exist value is [{}]",
+                 contract.is_user_exists("robert.testnet".to_string() as AccountId));
+
+        contract.create_account("Robert".to_string());
     }
 
-
-    /*
-    #[test]
-    fn get_all_messages() {
-        let ctx = get_context(vec![], false);
-        testing_env!(ctx);
-
-        let mut contract = VecMessages::default();
-        contract.insert_message("Hello world".to_string());
-        contract.insert_message("This is message 2".to_string());
-        contract.insert_message("This is message 3".to_string());
-
-        println!("{}", contract.get_all_messages());
-    }
-    */
-    #[test]
-    fn get_single_message() {
-        let ctx = get_context(vec![], false);
-        testing_env!(ctx);
-
-        let mut contract = VecMessages::default();
-        contract.insert_message("Hello world".to_string());
-        contract.insert_message("This is message 2".to_string());
-        contract.insert_message("This is message 3".to_string());
-
-        println!("{}", contract.get_single_message(2));
-    }
 }
 
