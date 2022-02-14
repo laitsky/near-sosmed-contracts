@@ -1,15 +1,14 @@
 [package]
-name = "messaging-feature"
+name = "user-account"
 version = "0.1.0"
-authors = ["Vincent Diamond <vincent12@student.umn.ac.id>"]
+authors = ["Vincent D. <vincent12@student.umn.ac.id>"]
 edition = "2021"
 
 [lib]
-crate-type = ["cdylib", "rlib"]
+crate-type = ["cdylib"]
 
 [dependencies]
 near-sdk = "4.0.0-pre.4"
-serde = "1.0"
 
 [profile.release]
 codegen-units = 1
