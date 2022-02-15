@@ -1,13 +1,16 @@
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::collections::LookupMap;
+use near_sdk::collections::{LookupMap, Vector};
+use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::{env, near_bindgen, require, AccountId, BorshStorageKey, PanicOnDefault};
 
 #[derive(BorshStorageKey, BorshSerialize)]
 pub enum StorageKeys {
     UserList,
+    UserFollowers,
 }
 
-#[derive(BorshDeserialize, BorshSerialize)]
+#[derive(BorshDeserialize, BorshSerialize, Deserialize, Serialize, Debug)]
+#[serde(crate = "near_sdk::serde")]
 pub struct UserAccountDetail {
     address: String,
     name: String,
@@ -18,15 +21,21 @@ pub struct UserAccountDetail {
     created_at: u64,
     followers_count: u32,
     following_count: u32,
-    last_activity: u64,
 }
-
 impl UserAccountDetail {}
+
+#[derive(BorshDeserialize, BorshSerialize, Deserialize, Serialize, Debug)]
+#[serde(crate = "near_sdk::serde")]
+pub struct UserFollowers {
+    user_account_id: AccountId,
+    follower_account_id: AccountId,
+}
 
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize, PanicOnDefault)]
 pub struct Users {
     user_list: LookupMap<AccountId, UserAccountDetail>,
+    user_followers: Vector<UserFollowers>,
 }
 
 #[near_bindgen]
@@ -36,6 +45,7 @@ impl Users {
     pub fn new() -> Self {
         Self {
             user_list: LookupMap::new(StorageKeys::UserList),
+            user_followers: Vector::new(StorageKeys::UserFollowers),
         }
     }
 
@@ -71,9 +81,53 @@ impl Users {
                 created_at: env::block_timestamp(),
                 followers_count: 0,
                 following_count: 0,
-                last_activity: env::block_timestamp(),
             },
         );
+    }
+
+    // Find account details
+    pub fn get_account_details(&self, address: AccountId) -> Option<UserAccountDetail> {
+        self.user_list.get(&address)
+    }
+
+    // Follow new user
+    pub fn follow_user(&mut self, address: AccountId) {
+        let user_account_id = env::signer_account_id();
+        let follower_account_id = address;
+
+        // Check if signer has already followed destination account
+        let is_followed = self
+            .user_followers
+            .iter()
+            .filter(|u| u.user_account_id == user_account_id)
+            .position(|f| f.follower_account_id == follower_account_id);
+
+        if is_followed == None {
+            self.user_followers.push(&UserFollowers {
+                user_account_id,
+                follower_account_id,
+            })
+        } else {
+            env::panic_str("You have already followed this account!");
+        }
+    }
+
+    // Get user following list
+    pub fn get_user_following_list(&self, user_account_id: AccountId) -> Vec<UserFollowers> {
+        self.user_followers
+            .iter()
+            .filter(|u| u.user_account_id == user_account_id)
+            .collect::<Vec<UserFollowers>>()
+    }
+
+    // Get user following count
+    pub fn get_user_following_count(&self, user_account_id: AccountId) -> u64 {
+        self.user_followers
+            .iter()
+            .filter(|u| u.user_account_id == user_account_id)
+            .count()
+            .try_into()
+            .unwrap()
     }
 }
 
@@ -139,6 +193,49 @@ mod tests {
             Some("".into()),
             Some("".into()),
             Some("".into()),
+        );
+    }
+
+    #[test]
+    fn test_account_details() {
+        let ctx = get_context(vec![]);
+        testing_env!(ctx);
+
+        let mut contract = Users::new();
+        contract.create_account(
+            Some("Robert3".into()),
+            Some("".into()),
+            Some("".into()),
+            Some("".into()),
+            Some("".into()),
+        );
+
+        println!(
+            "{:?}",
+            contract.get_account_details("robert.testnet".to_string().parse().unwrap())
+        );
+    }
+
+    #[test]
+    fn test_get_user_followers_count() {
+        let ctx = get_context(vec![]);
+        testing_env!(ctx);
+
+        let mut contract = Users::new();
+        contract.create_account(Some("Hallse".into()), None, None, None, None);
+
+        contract.follow_user("vdz2h.testnet".to_string().parse().unwrap());
+        contract.follow_user("vdz3h.testnet".to_string().parse().unwrap());
+        contract.follow_user("vdz4h.testnet".to_string().parse().unwrap());
+
+        println!(
+            "following count: {}",
+            contract.get_user_following_count("robert.testnet".to_string().parse().unwrap())
+        );
+
+        println!(
+            "Following list: {:?}",
+            contract.get_user_following_list("robert.testnet".to_string().parse().unwrap())
         );
     }
 }
