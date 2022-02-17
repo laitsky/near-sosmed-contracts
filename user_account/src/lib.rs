@@ -90,34 +90,57 @@ impl Users {
         self.user_list.get(&address)
     }
 
+    // Check if destination account id is followed by a user
+    fn is_user_followed(
+        &self,
+        user_account_id: &AccountId,
+        destination_account_id: &AccountId,
+    ) -> Option<usize> {
+        self.user_followers.iter().position(|u| {
+            u.user_account_id == *user_account_id
+                && u.follower_account_id == *destination_account_id
+        })
+    }
+
     // Follow new user
     pub fn follow_user(&mut self, address: AccountId) {
         let user_account_id = env::signer_account_id();
-        let follower_account_id = address;
+        let destination_account_id = address;
 
-        // Check if signer has already followed destination account
-        let is_followed = self
-            .user_followers
-            .iter()
-            .filter(|u| u.user_account_id == user_account_id)
-            .position(|f| f.follower_account_id == follower_account_id);
-
-        if is_followed == None {
+        if self
+            .is_user_followed(&user_account_id, &destination_account_id)
+            .is_none()
+        {
             self.user_followers.push(&UserFollowers {
                 user_account_id,
-                follower_account_id,
-            })
+                follower_account_id: destination_account_id,
+            });
         } else {
             env::panic_str("You have already followed this account!");
         }
     }
 
+    // Unfollow a user
+    pub fn unfollow_user(&mut self, address: AccountId) {
+        let user_account_id = env::signer_account_id();
+        let destination_account_id = address;
+        let is_user_followed = self.is_user_followed(&user_account_id, &destination_account_id);
+
+        if is_user_followed.is_some() {
+            self.user_followers
+                .swap_remove(is_user_followed.unwrap() as u64);
+        } else {
+            env::panic_str("You have not followed this account!");
+        }
+    }
+
     // Get user following list
-    pub fn get_user_following_list(&self, user_account_id: AccountId) -> Vec<UserFollowers> {
+    pub fn get_user_following_list(&self, user_account_id: AccountId) -> Vec<String> {
         self.user_followers
             .iter()
             .filter(|u| u.user_account_id == user_account_id)
-            .collect::<Vec<UserFollowers>>()
+            .map(|u| u.follower_account_id.to_string())
+            .collect::<Vec<String>>()
     }
 
     // Get user following count
@@ -217,7 +240,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_user_followers_count() {
+    fn test_follow_functionalities() {
         let ctx = get_context(vec![]);
         testing_env!(ctx);
 
@@ -227,6 +250,18 @@ mod tests {
         contract.follow_user("vdz2h.testnet".to_string().parse().unwrap());
         contract.follow_user("vdz3h.testnet".to_string().parse().unwrap());
         contract.follow_user("vdz4h.testnet".to_string().parse().unwrap());
+
+        println!(
+            "following count: {}",
+            contract.get_user_following_count("robert.testnet".to_string().parse().unwrap())
+        );
+
+        println!(
+            "Following list: {:?}",
+            contract.get_user_following_list("robert.testnet".to_string().parse().unwrap())
+        );
+
+        contract.unfollow_user("vdz3h.testnet".to_string().parse().unwrap());
 
         println!(
             "following count: {}",
