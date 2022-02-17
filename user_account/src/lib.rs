@@ -91,7 +91,7 @@ impl Users {
     }
 
     // Check if destination account id is followed by a user
-    fn is_user_followed(
+    pub fn is_user_followed(
         &self,
         user_account_id: &AccountId,
         destination_account_id: &AccountId,
@@ -136,6 +136,7 @@ impl Users {
 
     // Get user following list
     pub fn get_user_following_list(&self, user_account_id: AccountId) -> Vec<String> {
+        require!(self.is_user_exists(user_account_id.clone()), "User does not exist!");
         self.user_followers
             .iter()
             .filter(|u| u.user_account_id == user_account_id)
@@ -145,12 +146,30 @@ impl Users {
 
     // Get user following count
     pub fn get_user_following_count(&self, user_account_id: AccountId) -> u64 {
+        require!(self.is_user_exists(user_account_id.clone()), "User does not exist!");
         self.user_followers
             .iter()
             .filter(|u| u.user_account_id == user_account_id)
-            .count()
-            .try_into()
-            .unwrap()
+            .count() as u64
+    }
+
+    // Get user followers list
+    pub fn get_user_followers_list(&self, user_account_id: AccountId) -> Vec<String> {
+        require!(self.is_user_exists(user_account_id.clone()), "User does not exist!");
+        self.user_followers
+            .iter()
+            .filter(|u| u.follower_account_id == user_account_id)
+            .map(|u| u.user_account_id.to_string())
+            .collect::<Vec<String>>()
+    }
+
+    // Get user followers count
+    pub fn get_user_followers_count(&self, user_account_id: AccountId) -> u64 {
+        require!(self.is_user_exists(user_account_id.clone()), "User does not exist!");
+        self.user_followers
+            .iter()
+            .filter(|u| u.follower_account_id == user_account_id)
+            .count() as u64
     }
 }
 
@@ -259,6 +278,11 @@ mod tests {
         println!(
             "Following list: {:?}",
             contract.get_user_following_list("robert.testnet".to_string().parse().unwrap())
+        );
+
+        println!(
+            "Followers list: {:?}",
+            contract.get_user_followers_list("robert.testnet".to_string().parse().unwrap())
         );
 
         contract.unfollow_user("vdz3h.testnet".to_string().parse().unwrap());
