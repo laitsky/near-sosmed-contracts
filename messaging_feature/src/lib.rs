@@ -1,11 +1,13 @@
 //use std::fmt::Formatter;
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::{AccountId, env, near_bindgen, BorshStorageKey};
-use near_sdk::collections::{LookupMap, Vector};
+use near_sdk::collections::{Vector};
+use near_sdk::{
+    env, ext_contract, near_bindgen, AccountId, Balance, BorshStorageKey, Gas, PanicOnDefault,
+    Promise, PromiseResult,
+};
 //use serde::{Serialize, Deserialize};
 
-
-    /*
+/*
 #[derive(Default, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
 pub struct Message {
     account_id: String,
@@ -21,15 +23,12 @@ impl std::fmt::Display for Message {
 }
     */
 
+const NO_DEPOSIT: Balance = 0;
+const BASE_GAS: Gas = Gas(100_000_000_000_000);
+
 #[derive(BorshStorageKey, BorshSerialize)]
 pub enum StorageKeys {
-    UserList,
-    AllMessages
-}
-#[derive(BorshDeserialize, BorshSerialize)]
-pub struct User {
-    name: String,
-    friend_list: Option<Vector<Friend>>,
+    AllMessages,
 }
 
 #[derive(BorshDeserialize, BorshSerialize)]
@@ -45,13 +44,21 @@ pub struct Message {
     message: String,
 }
 
+#[ext_contract(ext_user)]
+trait User {
+    fn is_user_exists(&self, address: AccountId) -> bool;
+}
+
+// Cross-contract methods callback
+#[ext_contract(ext_self)]
+pub trait MessageContract {
+    fn send_messages_cb(&self);
+}
 
 #[near_bindgen]
-#[derive(BorshDeserialize, BorshSerialize)]
+#[derive(BorshDeserialize, BorshSerialize, PanicOnDefault)]
 pub struct MessagingDb {
-    // Collection of users registered on the application
-    user_list: LookupMap<AccountId, User>,
-    all_messages: LookupMap<String, Vector<Message>>
+    messages: Vector<String>,
 }
 
 #[near_bindgen]
@@ -60,30 +67,39 @@ impl MessagingDb {
     #[init]
     pub fn new() -> Self {
         Self {
-            user_list: LookupMap::new(StorageKeys::UserList),
-            all_messages: LookupMap::new(StorageKeys::AllMessages)
+            messages: Vector::new(StorageKeys::AllMessages),
         }
     }
 
-    // Returns true if user exist
-    pub fn is_user_exists(&self, address: AccountId) -> bool {
-        self.user_list.contains_key(&address)
+    pub fn test_cross_contract_call(&self) -> Promise {
+        ext_user::is_user_exists(
+            env::signer_account_id(),
+            "user.dao-sosmed.testnet".to_string().parse().unwrap(), // contract account id
+            NO_DEPOSIT,                                             // yocto NEAR to attach
+            BASE_GAS,                                               // gas to attach
+        )
+        .then(ext_self::send_messages_cb(
+            env::current_account_id(), // this contract account id
+            NO_DEPOSIT,                // yocto NEAR to attach to the callback
+            BASE_GAS,                  // gas to attach to the callback
+        ))
     }
 
-    // Create an account
-    pub fn create_account(&mut self, name: String) {
-        let new_address: AccountId = env::signer_account_id();
-        assert!(!self.user_list.contains_key(&new_address), "Account already exist!");
+    pub fn send_messages_cb(&self) -> String {
+        assert_eq!(env::promise_results_count(), 1, "This is a callback method");
 
-        // If not exist, insert a new address
-        self.user_list.insert(
-            &new_address,
-            &User {
-                    name,
-                    friend_list: None
+        match env::promise_result(0) {
+            PromiseResult::NotReady => unreachable!(),
+            PromiseResult::Failed => "oops".to_string(),
+            PromiseResult::Successful(result) => {
+                let is_exist = near_sdk::serde_json::from_slice::<bool>(&result).unwrap();
+                if is_exist == true {
+                    "Account exist".to_string()
+                } else {
+                    "Account does not exist".to_string()
+                }
             }
-        );
-
+        }
     }
 }
 
@@ -119,19 +135,6 @@ mod tests {
     #[test]
     #[should_panic]
     fn check_user_exists() {
-        let ctx = get_context(vec![]);
-        testing_env!(ctx);
-
-        let mut contract = MessagingDb::new();
-        println!("[ACCOUNT NOT CREATED]: check_user_exist value is [{}]",
-                 contract.is_user_exists("robert.testnet".to_string().parse().unwrap()));
-
-        contract.create_account("Robert".to_string());
-        println!("[ACCOUNT CREATED]: check_user_exist value is [{}]",
-                 contract.is_user_exists("robert.testnet".to_string().parse().unwrap()));
-
-        contract.create_account("Robert".to_string().parse().unwrap());
+        todo!()
     }
-
 }
-
