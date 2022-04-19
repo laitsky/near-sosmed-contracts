@@ -1,5 +1,5 @@
 [package]
-name = "messaging-feature"
+name = "main-contract"
 version = "0.1.0"
 authors = ["Vincent Diamond <vincent12@student.umn.ac.id>"]
 edition = "2021"

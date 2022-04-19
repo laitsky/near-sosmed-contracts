@@ -459,6 +459,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e74d72e0f9b65b5b4ca49a346af3976df0f9c61d550727f349ecd559f251a26c"
 
 [[package]]
+name = "main-contract"
+version = "0.1.0"
+dependencies = [
+ "near-sdk",
+ "serde",
+]
+
+[[package]]
 name = "matches"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -475,14 +483,6 @@ name = "memory_units"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8452105ba047068f40ff7093dd1d9da90898e63dd61736462e9cdda6a90ad3c3"
-
-[[package]]
-name = "messaging-feature"
-version = "0.1.0"
-dependencies = [
- "near-sdk",
- "serde",
-]
 
 [[package]]
 name = "near-account-id"
