@@ -1,4 +1,5 @@
-mod users;
+mod user;
+mod post;
 
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::{LookupMap, Vector};
@@ -14,8 +15,8 @@ pub enum StorageKeys {
 #[derive(BorshDeserialize, BorshSerialize, PanicOnDefault)]
 pub struct Contract {
     // Users struct
-    user_list: LookupMap<AccountId, users::UserAccountDetail>,
-    user_followers: Vector<users::UserFollowers>,
+    user_list: LookupMap<AccountId, user::UserAccountDetail>,
+    user_followers: Vector<user::UserFollowers>,
 }
 
 #[near_bindgen]
@@ -51,7 +52,7 @@ impl Contract {
 
         self.user_list.insert(
             &address,
-            &users::UserAccountDetail {
+            &user::UserAccountDetail {
                 address: address.to_string(),
                 name: name.unwrap_or("".into()),
                 profile_image_url: profile_image_url.unwrap_or("".into()),
@@ -66,7 +67,7 @@ impl Contract {
     }
 
     // Find account details
-    pub fn get_account_details(&self, address: AccountId) -> Option<users::UserAccountDetail> {
+    pub fn get_account_details(&self, address: AccountId) -> Option<user::UserAccountDetail> {
         self.user_list.get(&address)
     }
 
@@ -91,7 +92,7 @@ impl Contract {
             .is_user_followed(&user_account_id, &destination_account_id)
             .is_none()
         {
-            self.user_followers.push(&users::UserFollowers {
+            self.user_followers.push(&user::UserFollowers {
                 user_account_id,
                 follower_account_id: destination_account_id,
             });
