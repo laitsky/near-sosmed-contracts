@@ -1,22 +1,31 @@
-mod user;
 mod post;
+mod user;
 
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::{LookupMap, Vector};
-use near_sdk::{near_bindgen, BorshStorageKey, require, AccountId, env, PanicOnDefault};
+use near_sdk::{env, near_bindgen, require, AccountId, BorshStorageKey, PanicOnDefault};
 
 #[derive(BorshStorageKey, BorshSerialize)]
 pub enum StorageKeys {
     UserList,
     UserFollowers,
+    AllPosts,
+    PostLikes,
+    PostComments,
 }
 
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize, PanicOnDefault)]
 pub struct Contract {
-    // Users struct
+    // User fields
     user_list: LookupMap<AccountId, user::UserAccountDetail>,
     user_followers: Vector<user::UserFollowers>,
+    // Post fields
+    all_posts: Vector<post::PostDetail>,
+    post_likes: Vector<post::PostLikes>,
+    post_comments: Vector<post::PostComment>,
+    post_counter: u64,
+    comment_counter: u64,
 }
 
 #[near_bindgen]
@@ -24,9 +33,15 @@ impl Contract {
     // Contract initialization
     #[init]
     pub fn new() -> Self {
+        require!(!env::state_exists(), "The contract is already initialized");
         Self {
             user_list: LookupMap::new(StorageKeys::UserList),
             user_followers: Vector::new(StorageKeys::UserFollowers),
+            all_posts: Vector::new(StorageKeys::AllPosts),
+            post_likes: Vector::new(StorageKeys::PostLikes),
+            post_comments: Vector::new(StorageKeys::PostComments),
+            post_counter: 0,
+            comment_counter: 0,
         }
     }
 
@@ -68,6 +83,7 @@ impl Contract {
 
     // Find account details
     pub fn get_account_details(&self, address: AccountId) -> Option<user::UserAccountDetail> {
+        require!(self.user_list.contains_key(&address), "Account not found");
         self.user_list.get(&address)
     }
 
@@ -117,7 +133,10 @@ impl Contract {
 
     // Get user following list
     pub fn get_user_following_list(&self, user_account_id: AccountId) -> Vec<String> {
-        require!(self.is_user_exists(user_account_id.clone()), "User does not exist!");
+        require!(
+            self.is_user_exists(user_account_id.clone()),
+            "User does not exist!"
+        );
         self.user_followers
             .iter()
             .filter(|u| u.user_account_id == user_account_id)
@@ -127,7 +146,10 @@ impl Contract {
 
     // Get user following count
     pub fn get_user_following_count(&self, user_account_id: AccountId) -> u64 {
-        require!(self.is_user_exists(user_account_id.clone()), "User does not exist!");
+        require!(
+            self.is_user_exists(user_account_id.clone()),
+            "User does not exist!"
+        );
         self.user_followers
             .iter()
             .filter(|u| u.user_account_id == user_account_id)
@@ -136,7 +158,10 @@ impl Contract {
 
     // Get user followers list
     pub fn get_user_followers_list(&self, user_account_id: AccountId) -> Vec<String> {
-        require!(self.is_user_exists(user_account_id.clone()), "User does not exist!");
+        require!(
+            self.is_user_exists(user_account_id.clone()),
+            "User does not exist!"
+        );
         self.user_followers
             .iter()
             .filter(|u| u.follower_account_id == user_account_id)
@@ -146,11 +171,156 @@ impl Contract {
 
     // Get user followers count
     pub fn get_user_followers_count(&self, user_account_id: AccountId) -> u64 {
-        require!(self.is_user_exists(user_account_id.clone()), "User does not exist!");
+        require!(
+            self.is_user_exists(user_account_id.clone()),
+            "User does not exist!"
+        );
         self.user_followers
             .iter()
             .filter(|u| u.follower_account_id == user_account_id)
             .count() as u64
+    }
+
+    // Create new post
+    pub fn create_post(&mut self, content: String) {
+        let user_address: AccountId = env::signer_account_id();
+        self.all_posts.push(&post::PostDetail {
+            post_id: self.post_counter + 1,
+            user_address,
+            content,
+            created_at: env::block_timestamp(),
+        });
+        self.post_counter = self.post_counter + 1;
+    }
+
+    // Like and unlike a post by its post ID
+    pub fn like_post(&mut self, post_id: u64) {
+        let address = env::signer_account_id();
+        let is_liked = self
+            .post_likes
+            .iter()
+            .filter(|pl| pl.post_id == post_id)
+            .find(|pl| pl.user_address == address);
+
+        if is_liked.is_none() {
+            self.post_likes.push(&post::PostLikes {
+                post_id,
+                user_address: address,
+                created_at: env::block_timestamp(),
+            })
+        } else {
+            let index = self
+                .post_likes
+                .iter()
+                .position(|pl| pl.post_id == post_id && pl.user_address == address)
+                .unwrap() as u64;
+            self.post_likes.swap_remove(index);
+        }
+    }
+
+    // Comment on a post
+    pub fn comment_on_post(&mut self, post_id: u64, comment: String) {
+        require!(comment.chars().count() > 0, "Comment cannot be empty!");
+
+        let address = env::signer_account_id();
+
+        self.post_comments.push(&post::PostComment {
+            comment_id: self.comment_counter + 1,
+            post_id,
+            user_address: address,
+            comment,
+            created_at: env::block_timestamp(),
+        });
+
+        self.comment_counter = self.comment_counter + 1;
+    }
+
+    // Retrieve post likes details
+    pub fn get_post_likes_details(&self, post_id: u64) -> Vec<String> {
+        self.post_likes
+            .iter()
+            .filter(|pl| pl.post_id == post_id)
+            .map(|pl| pl.user_address.to_string())
+            .collect::<Vec<String>>()
+    }
+
+    // Get poster address based on post ID
+    pub fn get_poster_address(&self, post_id: u64) -> AccountId {
+        self.all_posts
+            .iter()
+            .find(|p| p.post_id == post_id)
+            .unwrap()
+            .user_address
+    }
+
+    // Retrieve all available posts
+    pub fn get_all_posts(&self) -> Vec<post::PostOutputFormat> {
+        let mut posts: Vec<post::PostOutputFormat> = vec![];
+        for (_pos, post) in self.all_posts.iter().enumerate() {
+            let profile = self
+                .get_account_details(self.get_poster_address(post.post_id))
+                .unwrap();
+            let like_count = self
+                .post_likes
+                .iter()
+                .filter(|p| p.post_id == post.post_id)
+                .count() as u64;
+            let comment_count = self
+                .post_comments
+                .iter()
+                .filter(|p| p.post_id == post.post_id)
+                .count() as u64;
+
+            posts.push(post::PostOutputFormat {
+                name: profile.name,
+                profile_image_url: profile.profile_image_url,
+                post,
+                like_count,
+                comment_count,
+                like_details: None,
+                comment_details: None,
+            })
+        }
+        posts
+    }
+
+    // Retrieve single post detail
+    pub fn get_single_post(&self, post_id: u64) -> post::PostOutputFormat {
+        require!(
+            self.all_posts
+                .iter()
+                .find(|p| p.post_id == post_id)
+                .is_some(),
+            "Post does not exist!"
+        );
+        let profile = self
+            .get_account_details(self.get_poster_address(post_id))
+            .unwrap();
+        let post = self
+            .all_posts
+            .iter()
+            .find(|p| p.post_id == post_id)
+            .unwrap();
+        let like_details = self
+            .post_likes
+            .iter()
+            .filter(|p| p.post_id == post_id)
+            .collect::<Vec<post::PostLikes>>();
+        let comment_details = self
+            .post_comments
+            .iter()
+            .filter(|p| p.post_id == post_id)
+            .collect::<Vec<post::PostComment>>();
+
+        post::PostOutputFormat {
+            name: profile.name,
+            profile_image_url: profile.profile_image_url,
+            post,
+            like_count: like_details.iter().count() as u64,
+            comment_count: comment_details.iter().count() as u64,
+            like_details: Some(like_details),
+            comment_details: Some(comment_details),
+        }
     }
 }
 
@@ -188,7 +358,7 @@ mod tests {
             random_seed: vec![0, 1, 2],
             output_data_receivers: vec![],
             epoch_height: 19,
-            view_config: None
+            view_config: None,
         }
     }
 
