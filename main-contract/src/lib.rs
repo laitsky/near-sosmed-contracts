@@ -256,7 +256,7 @@ impl Contract {
     // Retrieve all available posts
     pub fn get_all_posts(&self) -> Vec<post::PostOutputFormat> {
         let mut posts: Vec<post::PostOutputFormat> = vec![];
-        for (_pos, post) in self.all_posts.iter().enumerate() {
+        for (_pos, post) in (self.all_posts.iter().enumerate()).rev() {
             let profile = self
                 .get_account_details(self.get_poster_address(post.post_id))
                 .unwrap();
@@ -279,6 +279,7 @@ impl Contract {
                 comment_count,
                 like_details: None,
                 comment_details: None,
+                is_liked: None,
             })
         }
         posts
@@ -320,6 +321,7 @@ impl Contract {
             comment_count: comment_details.iter().count() as u64,
             like_details: Some(like_details),
             comment_details: Some(comment_details),
+            is_liked: None
         }
     }
 }

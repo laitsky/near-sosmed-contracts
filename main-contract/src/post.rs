@@ -26,6 +26,7 @@ pub struct PostOutputFormat {
     pub comment_count: u64,
     pub like_details: Option<Vec<PostLikes>>,
     pub comment_details: Option<Vec<PostComment>>,
+    pub is_liked: Option<bool>
 }
 
 #[derive(BorshDeserialize, BorshSerialize, Deserialize, Serialize, Debug)]
