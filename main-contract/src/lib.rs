@@ -254,7 +254,7 @@ impl Contract {
     }
 
     // Retrieve all available posts
-    pub fn get_all_posts(&self) -> Vec<post::PostOutputFormat> {
+    pub fn get_all_posts(&self, account_id: Option<AccountId>) -> Vec<post::PostOutputFormat> {
         let mut posts: Vec<post::PostOutputFormat> = vec![];
         for (_pos, post) in (self.all_posts.iter().enumerate()).rev() {
             let profile = self
@@ -270,6 +270,14 @@ impl Contract {
                 .iter()
                 .filter(|p| p.post_id == post.post_id)
                 .count() as u64;
+            let mut is_liked = false;
+
+            if account_id != None {
+                is_liked = self
+                    .post_likes
+                    .iter()
+                    .any(|p| p.user_address == account_id.clone().unwrap());
+            }
 
             posts.push(post::PostOutputFormat {
                 name: profile.name,
@@ -279,14 +287,18 @@ impl Contract {
                 comment_count,
                 like_details: None,
                 comment_details: None,
-                is_liked: None,
+                is_liked: if account_id != None { Some(is_liked) } else { None },
             })
         }
         posts
     }
 
     // Retrieve single post detail
-    pub fn get_single_post(&self, post_id: u64) -> post::PostOutputFormat {
+    pub fn get_single_post(
+        &self,
+        post_id: u64,
+        account_id: Option<AccountId>,
+    ) -> post::PostOutputFormat {
         require!(
             self.all_posts
                 .iter()
@@ -312,6 +324,14 @@ impl Contract {
             .iter()
             .filter(|p| p.post_id == post_id)
             .collect::<Vec<post::PostComment>>();
+        let mut is_liked = false;
+
+        if account_id != None {
+            is_liked = self
+                .post_likes
+                .iter()
+                .any(|p| p.user_address == account_id.clone().unwrap());
+        }
 
         post::PostOutputFormat {
             name: profile.name,
@@ -321,7 +341,7 @@ impl Contract {
             comment_count: comment_details.iter().count() as u64,
             like_details: Some(like_details),
             comment_details: Some(comment_details),
-            is_liked: None
+            is_liked: if account_id != None { Some(is_liked) } else { None },
         }
     }
 }
