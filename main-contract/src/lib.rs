@@ -5,6 +5,7 @@ use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::{LookupMap, Vector};
 use near_sdk::{env, near_bindgen, require, AccountId, BorshStorageKey, PanicOnDefault};
 
+
 #[derive(BorshStorageKey, BorshSerialize)]
 pub enum StorageKeys {
     UserList,
@@ -58,13 +59,12 @@ impl Contract {
         location: Option<String>,
         url: Option<String>,
         description: Option<String>,
-    ) {
+    ) -> bool {
         let address: AccountId = env::signer_account_id();
         require!(
             !self.user_list.contains_key(&address),
             "Account already exist!"
         );
-
         self.user_list.insert(
             &address,
             &user::UserAccountDetail {
@@ -79,6 +79,8 @@ impl Contract {
                 following_count: 0,
             },
         );
+
+        true
     }
 
     // Find account details
@@ -235,13 +237,49 @@ impl Contract {
         self.comment_counter = self.comment_counter + 1;
     }
 
+    // Retrieve post comments details
+    pub fn get_post_comment_details(&self, post_id: u64) -> Vec<post::PostCommentDetailsOutput> {
+        let mut post_comments: Vec<post::PostCommentDetailsOutput> = vec![];
+        for (_, post_comment) in self
+            .post_comments
+            .iter()
+            .filter(|pc| pc.post_id == post_id)
+            .enumerate()
+        {
+            let profile_image_url = self
+                .get_account_details(post_comment.user_address.clone())
+                .unwrap()
+                .profile_image_url;
+            post_comments.push(post::PostCommentDetailsOutput {
+                comment_id: post_comment.comment_id,
+                user_address: post_comment.user_address,
+                profile_image_url,
+                comment: post_comment.comment,
+                created_at: post_comment.created_at,
+            })
+        }
+        post_comments
+    }
+
     // Retrieve post likes details
-    pub fn get_post_likes_details(&self, post_id: u64) -> Vec<String> {
-        self.post_likes
+    pub fn get_post_likes_details(&self, post_id: u64) -> Vec<post::PostLikeDetailsOutput> {
+        let mut post_likes: Vec<post::PostLikeDetailsOutput> = vec![];
+        for (_, post_like) in self
+            .post_likes
             .iter()
             .filter(|pl| pl.post_id == post_id)
-            .map(|pl| pl.user_address.to_string())
-            .collect::<Vec<String>>()
+            .enumerate()
+        {
+            let profile_image_url = self
+                .get_account_details(post_like.user_address.clone())
+                .unwrap()
+                .profile_image_url;
+            post_likes.push(post::PostLikeDetailsOutput {
+                user_address: post_like.user_address,
+                profile_image_url,
+            })
+        }
+        post_likes
     }
 
     // Get poster address based on post ID
@@ -256,7 +294,7 @@ impl Contract {
     // Retrieve all available posts
     pub fn get_all_posts(&self, account_id: Option<AccountId>) -> Vec<post::PostOutputFormat> {
         let mut posts: Vec<post::PostOutputFormat> = vec![];
-        for (_pos, post) in (self.all_posts.iter().enumerate()).rev() {
+        for (_, post) in (self.all_posts.iter().enumerate()).rev() {
             let profile = self
                 .get_account_details(self.get_poster_address(post.post_id))
                 .unwrap();
@@ -276,6 +314,7 @@ impl Contract {
                 is_liked = self
                     .post_likes
                     .iter()
+                    .filter(|p| p.post_id == post.post_id)
                     .any(|p| p.user_address == account_id.clone().unwrap());
             }
 
@@ -287,7 +326,11 @@ impl Contract {
                 comment_count,
                 like_details: None,
                 comment_details: None,
-                is_liked: if account_id != None { Some(is_liked) } else { None },
+                is_liked: if account_id != None {
+                    Some(is_liked)
+                } else {
+                    None
+                },
             })
         }
         posts
@@ -330,6 +373,7 @@ impl Contract {
             is_liked = self
                 .post_likes
                 .iter()
+                .filter(|p| p.post_id == post.post_id)
                 .any(|p| p.user_address == account_id.clone().unwrap());
         }
 
@@ -341,7 +385,11 @@ impl Contract {
             comment_count: comment_details.iter().count() as u64,
             like_details: Some(like_details),
             comment_details: Some(comment_details),
-            is_liked: if account_id != None { Some(is_liked) } else { None },
+            is_liked: if account_id != None {
+                Some(is_liked)
+            } else {
+                None
+            },
         }
     }
 }

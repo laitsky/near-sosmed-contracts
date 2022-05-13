@@ -48,10 +48,27 @@ pub struct PostLikes {
 
 #[derive(BorshDeserialize, BorshSerialize, Deserialize, Serialize, Debug)]
 #[serde(crate = "near_sdk::serde")]
+pub struct PostLikeDetailsOutput {
+    pub user_address: AccountId,
+    pub profile_image_url: String,
+}
+
+#[derive(BorshDeserialize, BorshSerialize, Deserialize, Serialize, Debug)]
+#[serde(crate = "near_sdk::serde")]
 pub struct PostComment {
     pub comment_id: u64,
     pub post_id: u64,
     pub user_address: AccountId,
     pub comment: String,
     pub created_at: u64,
+}
+
+#[derive(BorshDeserialize, BorshSerialize, Deserialize, Serialize, Debug)]
+#[serde(crate = "near_sdk::serde")]
+pub struct PostCommentDetailsOutput {
+    pub comment_id: u64,
+    pub user_address: AccountId,
+    pub profile_image_url: String,
+    pub comment: String,
+    pub created_at: u64
 }
