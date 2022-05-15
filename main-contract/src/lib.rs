@@ -89,6 +89,35 @@ impl Contract {
         self.user_list.get(&address)
     }
 
+    // Edit account details
+    pub fn edit_account_details(&mut self, name: String, location: String, url: String, description: String) {
+        let signer: AccountId = env::signer_account_id();
+        let account_details = self.user_list.remove(&signer);
+        match account_details {
+            None => env::panic_str("Account does not exist!"),
+            Some(mut acc) => {
+                acc.name = name;
+                acc.location = location;
+                acc.url = url;
+                acc.description = description;
+                self.user_list.insert(&signer, &acc);
+            }
+        }
+    }
+
+    // Edit profile image
+    pub fn edit_profile_image(&mut self, profile_image_url: String) {
+        let signer: AccountId = env::signer_account_id();
+        let account_details = self.user_list.remove(&signer);
+        match account_details {
+            None => env::panic_str("Account does not exist!"),
+            Some(mut acc) => {
+                acc.profile_image_url = profile_image_url;
+                self.user_list.insert(&signer, &acc);
+            }
+        }
+    }
+
     // Check if destination account id is followed by a user
     pub fn is_user_followed(
         &self,
@@ -463,5 +492,26 @@ mod tests {
             Some("".into()),
             Some("".into()),
         );
+    }
+
+    #[test]
+    fn test_change_profile_image() {
+        let ctx = get_context(vec![]);
+        testing_env!(ctx);
+
+        let mut contract = Contract::new();
+        contract.create_account(
+            Some("Mond".into()),
+            Some("changethis".into()),
+            Some("".into()),
+            Some("".into()),
+            Some("".into()),
+        );
+
+        println!("prev image url: {:?}", contract.get_account_details("robert.testnet".to_string().parse().unwrap()).unwrap().profile_image_url);
+
+        contract.edit_profile_image("changed!".into());
+        println!("after image url: {:?}", contract.get_account_details("robert.testnet".to_string().parse().unwrap()));
+
     }
 }
