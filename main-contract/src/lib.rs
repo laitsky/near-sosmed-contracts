@@ -5,7 +5,6 @@ use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::{LookupMap, Vector};
 use near_sdk::{env, near_bindgen, require, AccountId, BorshStorageKey, PanicOnDefault};
 
-
 #[derive(BorshStorageKey, BorshSerialize)]
 pub enum StorageKeys {
     UserList,
@@ -90,7 +89,13 @@ impl Contract {
     }
 
     // Edit account details
-    pub fn edit_account_details(&mut self, name: String, location: String, url: String, description: String) {
+    pub fn edit_account_details(
+        &mut self,
+        name: String,
+        location: String,
+        url: String,
+        description: String,
+    ) {
         let signer: AccountId = env::signer_account_id();
         let account_details = self.user_list.remove(&signer);
         match account_details {
@@ -130,37 +135,25 @@ impl Contract {
         })
     }
 
-    // Follow new user
+    // Follow and unfollow user
     pub fn follow_user(&mut self, address: AccountId) {
         let user_account_id = env::signer_account_id();
         let destination_account_id = address;
+        let is_followed = self.is_user_followed(&user_account_id, &destination_account_id);
 
-        if self
-            .is_user_followed(&user_account_id, &destination_account_id)
-            .is_none()
-        {
-            self.user_followers.push(&user::UserFollowers {
-                user_account_id,
-                follower_account_id: destination_account_id,
-            });
-        } else {
-            env::panic_str("You have already followed this account!");
+        match is_followed {
+            None => {
+                self.user_followers.push(&user::UserFollowers {
+                    user_account_id,
+                    follower_account_id: destination_account_id,
+                });
+            }
+            Some(u) => {
+                self.user_followers.swap_remove(u as u64);
+            }
         }
     }
 
-    // Unfollow a user
-    pub fn unfollow_user(&mut self, address: AccountId) {
-        let user_account_id = env::signer_account_id();
-        let destination_account_id = address;
-        let is_user_followed = self.is_user_followed(&user_account_id, &destination_account_id);
-
-        if is_user_followed.is_some() {
-            self.user_followers
-                .swap_remove(is_user_followed.unwrap() as u64);
-        } else {
-            env::panic_str("You have not followed this account!");
-        }
-    }
 
     // Get user following list
     pub fn get_user_following_list(&self, user_account_id: AccountId) -> Vec<String> {
@@ -421,6 +414,64 @@ impl Contract {
             },
         }
     }
+
+    // Get specific user posts
+    pub fn get_user_posts(
+        &self,
+        account_id: AccountId,
+        perspective: Option<AccountId>,
+    ) -> Vec<post::PostOutputFormat> {
+        let mut posts: Vec<post::PostOutputFormat> = vec![];
+        for (_, post) in self
+            .all_posts
+            .iter()
+            .filter(|p| p.user_address == account_id.clone())
+            .enumerate()
+        {
+            let profile = self
+                .get_account_details(self.get_poster_address(post.post_id))
+                .unwrap();
+            let like_count = self
+                .post_likes
+                .iter()
+                .filter(|p| p.post_id == post.post_id)
+                .count() as u64;
+            let comment_count = self
+                .post_comments
+                .iter()
+                .filter(|p| p.post_id == post.post_id)
+                .count() as u64;
+            let is_liked;
+            match perspective.clone() {
+                None => {
+                    is_liked = self
+                        .post_likes
+                        .iter()
+                        .filter(|p| p.post_id == post.post_id)
+                        .any(|p| p.user_address == account_id.clone());
+                }
+                Some(account) => {
+                    is_liked = self
+                        .post_likes
+                        .iter()
+                        .filter(|p| p.post_id == post.post_id)
+                        .any(|p| p.user_address == account);
+                }
+            }
+
+            posts.push(post::PostOutputFormat {
+                name: profile.name,
+                profile_image_url: profile.profile_image_url,
+                post,
+                like_count,
+                comment_count,
+                like_details: None,
+                comment_details: None,
+                is_liked: Some(is_liked),
+            })
+        }
+        posts
+    }
 }
 
 /*
@@ -508,10 +559,18 @@ mod tests {
             Some("".into()),
         );
 
-        println!("prev image url: {:?}", contract.get_account_details("robert.testnet".to_string().parse().unwrap()).unwrap().profile_image_url);
+        println!(
+            "prev image url: {:?}",
+            contract
+                .get_account_details("robert.testnet".to_string().parse().unwrap())
+                .unwrap()
+                .profile_image_url
+        );
 
         contract.edit_profile_image("changed!".into());
-        println!("after image url: {:?}", contract.get_account_details("robert.testnet".to_string().parse().unwrap()));
-
+        println!(
+            "after image url: {:?}",
+            contract.get_account_details("robert.testnet".to_string().parse().unwrap())
+        );
     }
 }
