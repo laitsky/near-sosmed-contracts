@@ -22,3 +22,11 @@ pub struct UserFollowers {
     pub user_account_id: AccountId,
     pub follower_account_id: AccountId,
 }
+
+#[derive(BorshDeserialize, BorshSerialize, Deserialize, Serialize, Debug)]
+#[serde(crate = "near_sdk::serde")]
+pub struct UserFollowList {
+    pub profile_image_url: String,
+    pub user_account_id: AccountId,
+    pub is_followed: bool
+}

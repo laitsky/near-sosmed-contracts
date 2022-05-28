@@ -154,18 +154,32 @@ impl Contract {
         }
     }
 
-
     // Get user following list
-    pub fn get_user_following_list(&self, user_account_id: AccountId) -> Vec<String> {
+    pub fn get_user_following_list(&self, user_account_id: AccountId) -> Vec<user::UserFollowList> {
         require!(
             self.is_user_exists(user_account_id.clone()),
             "User does not exist!"
         );
-        self.user_followers
+        let mut follow_list: Vec<user::UserFollowList> = vec![];
+        // self.user_followers
+        //     .iter()
+        //     .filter(|u| u.user_account_id == user_account_id)
+        //     .map(|u| u.follower_account_id.to_string())
+        //     .collect::<Vec<String>>()
+        for (_, user) in self
+            .user_followers
             .iter()
             .filter(|u| u.user_account_id == user_account_id)
-            .map(|u| u.follower_account_id.to_string())
-            .collect::<Vec<String>>()
+            .enumerate()
+        {
+            let profile = self.get_account_details(user.follower_account_id.clone()).unwrap();
+            follow_list.push(user::UserFollowList {
+                profile_image_url: profile.profile_image_url,
+                user_account_id: user.follower_account_id,
+                is_followed: true
+            });
+        }
+        follow_list
     }
 
     // Get user following count
@@ -181,16 +195,37 @@ impl Contract {
     }
 
     // Get user followers list
-    pub fn get_user_followers_list(&self, user_account_id: AccountId) -> Vec<String> {
+    pub fn get_user_followers_list(&self, user_account_id: AccountId) -> Vec<user::UserFollowList> {
         require!(
             self.is_user_exists(user_account_id.clone()),
             "User does not exist!"
         );
-        self.user_followers
+        let mut follow_list: Vec<user::UserFollowList> = vec![];
+        // self.user_followers
+        //     .iter()
+        //     .filter(|u| u.follower_account_id == user_account_id)
+        //     .map(|u| u.user_account_id.to_string())
+        //     .collect::<Vec<String>>()
+
+        for (_, user) in self
+            .user_followers
             .iter()
             .filter(|u| u.follower_account_id == user_account_id)
-            .map(|u| u.user_account_id.to_string())
-            .collect::<Vec<String>>()
+            .enumerate()
+        {
+            let profile = self.get_account_details(user.user_account_id.clone()).unwrap();
+            let is_followed = self.is_user_followed(&user_account_id, &user.user_account_id);
+            follow_list.push(user::UserFollowList {
+                profile_image_url: profile.profile_image_url,
+                user_account_id: user.user_account_id,
+                is_followed: match is_followed {
+                    None => false,
+                    Some(_) => true
+                }
+            });
+        }
+        follow_list
+
     }
 
     // Get user followers count
@@ -297,7 +332,7 @@ impl Contract {
                 .unwrap()
                 .profile_image_url;
             post_likes.push(post::PostLikeDetailsOutput {
-                user_address: post_like.user_address,
+                    user_address: post_like.user_address,
                 profile_image_url,
             })
         }
