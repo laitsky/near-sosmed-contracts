@@ -1,6 +1,7 @@
 # Decentralized Social Media - Contract Repo
 
 This repo serves written smart contract code for decentralized social media app. 
+
 Client repo could be visited through this [link](https://github.com/laitsky/decentralized-social-media)
 
 The smart contract was written using Rust and NEAR SDK.
